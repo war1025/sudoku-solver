@@ -52,6 +52,23 @@ namespace Sudoku {
 				 }
 			}
 		}
+
+		public int[] safe_vals() {
+			int safe_count = 0;
+			for(bool b in safe) {
+				if(b) {
+					safe_count++;
+				}
+			}
+			int ret = new int[safe_count];
+			int j = 0;
+			for(int i = 0; i < ret.length; i++) {
+				if(safe[i]) {
+					ret[j++] = i;
+				}
+			}
+			return ret;
+		}
 	}
 
 	public class Row : Object {
@@ -67,11 +84,16 @@ namespace Sudoku {
 				this.squares[i].wrong.connect(() => {wrong();});
 				this.squares[i].val_found.connect( (v) => {
 						for(int j = 0; j < 9; j++) {
-							squares[j].unsafe(v);
+							this.squares[j].unsafe(v);
 						}
 					});
 			}
 		}
+	}
+
+	public class Board : Object {
+
+		public void signal wrong();
 
 
 }

@@ -26,7 +26,6 @@ namespace Sudoku {
 		public void set_val(int i) {
 			if(safe[i-1] && val < 0) {
 				val = i;
-debug("Sending val_found signal");
 				val_found(i);
 			}
 		}
@@ -43,13 +42,11 @@ debug("Sending val_found signal");
 				}
 			}
 			if(safe_count == 0) {
-debug("Sending signal wrong");
 				wrong();
 			} else if(val < 0 && safe_count == 1) {
 				 for(int i = 0; i < 9; i++) {
 					 if(safe[i]) {
 						 val = i+1;
-debug("Sending signal val_found");
 						 val_found(i+1);
 					 }
 				 }
@@ -76,6 +73,8 @@ debug("Sending signal val_found");
 
 	public class Row : Object {
 
+		public signal void wrong();
+
 		private Square[] squares;
 
 		public Row(Square[] squares) {
@@ -86,8 +85,26 @@ debug("Sending signal val_found");
 						for(int j = 0; j < 9; j++) {
 							this.squares[j].unsafe(v);
 						}
+						int count = 0;
+						foreach (Square s in this.squares) {
+							if(s.get_val() == v) {
+								count++;
+							}
+						}
+						if(count > 1) {
+							wrong();
+						}
 					});
 			}
+		}
+
+		public string to_string() {
+			StringBuilder sb = new StringBuilder();
+			foreach (Square s in squares) {
+				int val = s.get_val();
+				sb.append("%d ".printf((val > 0) ? val : 0));
+			}
+			return sb.str;
 		}
 	}
 
@@ -146,7 +163,7 @@ debug("Sending signal val_found");
 			}
 
 			for(int i = 0; i < 9; i++) {
-				int s = ((i / 3) * 27) + (i % 3);
+				int s = ((i / 3) * 27) + ((i % 3)*3);
 				rows[18 + i] = new Row(
 						new Square[] {	squares[s],
 										squares[s + 1],
@@ -158,6 +175,10 @@ debug("Sending signal val_found");
 										squares[s + 19],
 										squares[s + 20]
 									 });
+			}
+
+			foreach (Row r in rows) {
+				r.wrong.connect( () => {wrong();});
 			}
 
 		}
@@ -178,18 +199,21 @@ debug("Sending signal val_found");
 		}
 
 		public void min_safe(out int loc, out int[] safes) {
-debug("Squares Left: %d",squares_left);
 			safes = new int[10];
 			loc = -1;
 			int[] s = new int[10];
 			for(int i = 0; i < 81; i++) {
-debug("Loop: %d", i);
 				s = squares[i].safe_vals();
 				if((squares[i].get_val() < 0) && (s.length < safes.length)) {
 					loc = i;
 					safes = s;
 				}
 			}
+			int[] copy = new int[safes.length];
+			for(int i = 0; i < safes.length; i++) {
+				copy[i] = safes[i];
+			}
+			safes = copy;
 debug("Min Safe Loc: %d",loc);
 		}
 
@@ -203,11 +227,13 @@ debug("Min Safe Loc: %d",loc);
 
 		public string to_string() {
 			StringBuilder output = new StringBuilder();
-			for(int i = 0; i < 9; i++) {
-				for(int j = 0; j < 9; j++) {
-					output.append("%d ".printf(squares[9*i + j].get_val()));
+			int count = 0;
+			foreach(Row r in rows) {
+				if(count % 9 == 0) {
+					output.append("\n\n\n");
 				}
-				output.append("\n");
+				count++;
+				output.append("%s\n".printf(r.to_string()));
 			}
 			return output.str;
 		}
@@ -221,21 +247,18 @@ debug("Min Safe Loc: %d",loc);
 		public Sudoku(int[] vals) {
 			Board board = new Board();
 			complete = false;
-			board.complete.connect( () => { c_board = board; complete = true; });
+			board.complete.connect( () => {debug("Board Complete, %s", board.to_string()); this.c_board = board; debug("A"); this.complete = true; debug("B");});
 			for(int i = 0; i < vals.length; i++) {
 				if(vals[i] > 0) {
-debug("Setting: %d %d",i, vals[i]);
 					board.set_val(i, vals[i]);
 				}
 			}
-debug("Board:\n %s",board.to_string());
 			if(!complete) {
 				solve(board);
 			}
 		}
 
 		public void solve(Board b) {
-debug("Solving");
 			bool invalid = false;
 			int[] safes;
 			int loc;
@@ -245,23 +268,20 @@ debug("Solving");
 					invalid = false;
 					Board c = new Board.copy(b);
 					c.wrong.connect( () => {invalid = true;});
-					c.complete.connect( () => {c_board = c; complete = true;});
+					c.complete.connect( () => {if(!invalid) {c_board = c; complete = true;}});
 					c.set_val(loc, i);
-debug("Next");
-debug("Complete: %s",complete.to_string());
 					if(complete) {
-debug("Complete");
 						return;
 					}
-debug("A");
+
 					if(!invalid) {
-debug("A1");
+
 						solve(c);
-debug("A2");
+
 					}
-debug("B");
+
 					if(complete) {
-debug("Complete");
+
 						return;
 					}
 				}
@@ -277,8 +297,9 @@ debug("Complete: %s", complete.to_string());
 
 	public static void main(string[] args) {
 		int[] vals = new int[81];
+		string[] args2 = args[1].split(" ");
 		for(int i = 0; i < 81; i++) {
-			vals[i] = args[i+1].to_int();
+			vals[i] = args2[i].to_int();
 		}
 		Sudoku s = new Sudoku(vals);
 		int[] ret = s.get_vals();

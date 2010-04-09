@@ -5,14 +5,13 @@ namespace Sudoku {
 	public class Square : Object {
 
 		public signal void val_found(int i);
-		public signal void wrong();
 
 		private int val;
 
 		private bool[] safe;
 
 		public Square() {
-			this.val = -1;
+			this.val = 0;
 			this.safe = new bool[9];
 			for(int i = 0; i < 9; i++) {
 				safe[i] = true;
@@ -23,34 +22,21 @@ namespace Sudoku {
 			return val;
 		}
 
-		public void set_val(int i) {
-			if(safe[i-1] && val < 0) {
-				val = i;
-				val_found(i);
+		public void set_val(int v) {
+			if(safe[v-1] && val <= 0) {
+				val = v;
+				for(int i = 1; i <= 9; i++) {
+					unsafe(i);
+				}
+				val_found(v);
 			}
 		}
 
 		public void unsafe(int v) {
-			if(val > 0) {
+			if(val == v) {
 				return;
 			}
 			safe[v-1] = false;
-			int safe_count = 0;
-			for(int i = 0; i < 9; i++) {
-				if(safe[i]) {
-					safe_count++;
-				}
-			}
-			if(safe_count == 0) {
-				wrong();
-			} else if(val < 0 && safe_count == 1) {
-				 for(int i = 0; i < 9; i++) {
-					 if(safe[i]) {
-						 val = i+1;
-						 val_found(i+1);
-					 }
-				 }
-			}
 		}
 
 		public int[] safe_vals() {
@@ -69,33 +55,82 @@ namespace Sudoku {
 			}
 			return ret;
 		}
+
+		public bool is_safe(int v) {
+			return safe[v-1];
+		}
 	}
 
 	public class Row : Object {
 
-		public signal void wrong();
-
 		private Square[] squares;
+
+		private bool[] needed;
+		private int need_count;
+		private int num_set;
 
 		public Row(Square[] squares) {
 			this.squares = new Square[9];
+
 			for(int i = 0; i < squares.length; i++) {
 				this.squares[i] = squares[i];
-				this.squares[i].val_found.connect( (v) => {
-						for(int j = 0; j < 9; j++) {
-							this.squares[j].unsafe(v);
-						}
-						int count = 0;
-						foreach (Square s in this.squares) {
-							if(s.get_val() == v) {
-								count++;
-							}
-						}
-						if(count > 1) {
-							wrong();
-						}
-					});
+				this.squares[i].val_found.connect(found_update);
 			}
+
+			this.needed = new bool[9];
+			for(int i = 0; i < 9; i++) {
+				needed[i] = true;
+			}
+
+			need_count = 9;
+			num_set = 0;
+		}
+
+		private void found_update(int i) {
+			if(needed[i-1]) {
+				need_count--;
+			}
+			needed[i-1] = false;
+			num_set++;
+		}
+
+		public bool valid() {
+			return (need_count + num_set) == 9;
+		}
+
+		public bool complete() {
+			return (num_set == 9) && (need_count == 0);
+		}
+
+		public void update_safe() {
+			for(int i = 0; i < 9; i++) {
+				if(!needed[i]) {
+					foreach (Square s in squares) {
+						s.unsafe(i+1);
+					}
+				}
+			}
+		}
+
+		public bool fill_vals() {
+			bool did_something = false;
+			for(int i = 0; i < 9; i++) {
+				if(needed[i]) {
+					int count = 0;
+					foreach (Square s in squares) {
+						if(s.is_safe(i+1)) {
+							count++;
+						}
+					}
+					if(count == 1) {
+						did_something = true;
+						foreach (Square s in squares) {
+							s.set_val(i+1);
+						}
+					}
+				}
+			}
+			return did_something;
 		}
 
 		public string to_string() {
@@ -110,28 +145,15 @@ namespace Sudoku {
 
 	public class Board : Object {
 
-		public signal void wrong();
-		public signal void complete();
-
 		private Square[] squares;
 		private Row[] rows;
-		private int squares_left;
 
 		public Board() {
 			squares = new Square[81];
 			rows = new Row[27];
 
-			squares_left = 81;
-
 			for(int i = 0; i < 81; i++) {
 				squares[i] = new Square();
-				squares[i].wrong.connect( () => {wrong();});
-				squares[i].val_found.connect( () => {
-						squares_left--;
-						if(squares_left <= 0) {
-							complete();
-						}
-					});
 			}
 
 			for(int i = 0; i < 9; i++) {
@@ -177,10 +199,6 @@ namespace Sudoku {
 									 });
 			}
 
-			foreach (Row r in rows) {
-				r.wrong.connect( () => {wrong();});
-			}
-
 		}
 
 		public Board.copy(Board b) {
@@ -189,6 +207,44 @@ namespace Sudoku {
 				this.squares[i].set_val(b.squares[i].get_val());
 			}
 		}
+
+		public void update_safe() {
+			foreach (Row r in rows) {
+				r.update_safe();
+			}
+		}
+
+		public bool valid() {
+			bool ret = true;
+			foreach (Row r in rows) {
+				ret &= r.valid();
+			}
+			return ret;
+		}
+
+		public bool complete() {
+			bool ret = true;
+			foreach (Row r in rows) {
+				ret &= r.complete();
+			}
+			return ret;
+		}
+
+		public bool fill_vals() {
+			bool did_something = false;
+			foreach (Square s in squares) {
+				int[] safe_vals = s.safe_vals();
+				if(safe_vals.length == 1 && (s.get_val() == 0)) {
+					did_something = true;
+					s.set_val(safe_vals[0]);
+				}
+			}
+			foreach (Row r in rows) {
+				did_something |= r.fill_vals();
+			}
+			return did_something;
+		}
+
 
 		public void set_val(int loc, int val) {
 			squares[loc].set_val(val);
@@ -214,7 +270,6 @@ namespace Sudoku {
 				copy[i] = safes[i];
 			}
 			safes = copy;
-debug("Min Safe Loc: %d",loc);
 		}
 
 		public int[] get_vals() {
@@ -227,13 +282,8 @@ debug("Min Safe Loc: %d",loc);
 
 		public string to_string() {
 			StringBuilder output = new StringBuilder();
-			int count = 0;
-			foreach(Row r in rows) {
-				if(count % 9 == 0) {
-					output.append("\n\n\n");
-				}
-				count++;
-				output.append("%s\n".printf(r.to_string()));
+			for(int i = 9; i < 18; i++) {
+				output.append("%s\n".printf(rows[i].to_string()));
 			}
 			return output.str;
 		}
@@ -242,56 +292,62 @@ debug("Min Safe Loc: %d",loc);
 	public class Sudoku : Object {
 
 		private Board c_board;
-		private bool complete;
+		private bool solved;
 
 		public Sudoku(int[] vals) {
 			Board board = new Board();
-			complete = false;
-			board.complete.connect( () => {debug("Board Complete, %s", board.to_string()); this.c_board = board; debug("A"); this.complete = true; debug("B");});
 			for(int i = 0; i < vals.length; i++) {
 				if(vals[i] > 0) {
 					board.set_val(i, vals[i]);
 				}
 			}
-			if(!complete) {
-				solve(board);
-			}
+			active_solve(board);
 		}
 
-		public void solve(Board b) {
-			bool invalid = false;
-			int[] safes;
-			int loc;
-			b.min_safe(out loc, out safes);
-			if(loc >= 0) {
-				foreach (int i in safes) {
-					invalid = false;
+		private bool active_solve(Board b) {
+			if(solve(b)) {
+				return true;
+			} else if(b.valid()){
+				int[] safes;
+				int loc;
+				b.min_safe(out loc, out safes);
+				foreach(int i in safes) {
 					Board c = new Board.copy(b);
-					c.wrong.connect( () => {invalid = true;});
-					c.complete.connect( () => {if(!invalid) {c_board = c; complete = true;}});
-					c.set_val(loc, i);
-					if(complete) {
-						return;
-					}
-
-					if(!invalid) {
-
-						solve(c);
-
-					}
-
-					if(complete) {
-
-						return;
+					if(active_solve(c)) {
+						return true;
 					}
 				}
 			}
-			debug("Out of ideas");
+			return false;
 		}
 
+		private bool solve(Board b) {
+			bool go = true;
+			while(go) {
+				go = false;
+				b.update_safe();
+				go = b.fill_vals();
+			}
+			if(b.complete()) {
+				c_board = b;
+				solved = true;
+				return true;
+			} else {
+				return false;
+			}
+		}
+
+
 		public int[] get_vals() {
-debug("Complete: %s", complete.to_string());
 			return c_board.get_vals();
+		}
+
+		public string to_string() {
+			if(solved) {
+				return c_board.to_string();
+			} else {
+				return "No Solution Found";
+			}
 		}
 	}
 
@@ -302,12 +358,6 @@ debug("Complete: %s", complete.to_string());
 			vals[i] = args2[i].to_int();
 		}
 		Sudoku s = new Sudoku(vals);
-		int[] ret = s.get_vals();
-		for(int i = 0; i < 9; i++) {
-			for(int j = 0; j < 9; j++) {
-				stdout.printf("%d ",ret[9*i + j]);
-			}
-			stdout.printf("\n");
-		}
+		stdout.printf("\n\n%s\n\n",s.to_string());
 	}
 }

@@ -135,9 +135,13 @@ namespace Sudoku {
 
 		public string to_string() {
 			StringBuilder sb = new StringBuilder();
-			foreach (Square s in squares) {
-				int val = s.get_val();
-				sb.append("%d ".printf((val > 0) ? val : 0));
+			sb.append(" | ");
+			for(int i = 0; i < 9; i++) {
+				int val = squares[i].get_val();
+				sb.append("%d ".printf(val));
+				if(i % 3 == 2) {
+					sb.append("| ");
+				}
 			}
 			return sb.str;
 		}
@@ -285,8 +289,12 @@ namespace Sudoku {
 
 		public string to_string() {
 			StringBuilder output = new StringBuilder();
+			output.append(" -------------------------\n");
 			for(int i = 9; i < 18; i++) {
 				output.append("%s\n".printf(rows[i].to_string()));
+				if(i % 3 == 2) {
+					output.append(" -------------------------\n");
+				}
 			}
 			return output.str;
 		}
@@ -357,7 +365,7 @@ namespace Sudoku {
 
 	public static void main(string[] args) {
 		int[] vals = new int[81];
-		string[] args2 = args[1].split(" ");
+		string[] args2 = args[1].strip().split_set("\n ");
 		for(int i = 0; i < 81; i++) {
 			vals[i] = args2[i].to_int();
 		}

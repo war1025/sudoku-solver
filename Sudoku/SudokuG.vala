@@ -41,14 +41,14 @@ namespace Sudoku {
 
 		public int[] safe_vals() {
 			int safe_count = 0;
-			foreach (bool b in safe) {
-				if(b) {
+			for(int i = 0; i < safe.length; i++) {
+				if(safe[i]) {
 					safe_count++;
 				}
 			}
 			int[] ret = new int[safe_count];
 			int j = 0;
-			for(int i = 0; i < ret.length; i++) {
+			for(int i = 0; i < safe.length; i++) {
 				if(safe[i]) {
 					ret[j++] = i+1;
 				}
@@ -204,7 +204,10 @@ namespace Sudoku {
 		public Board.copy(Board b) {
 			this();
 			for(int i = 0; i < 81; i++) {
-				this.squares[i].set_val(b.squares[i].get_val());
+				int val = b.squares[i].get_val();
+				if(val > 0) {
+					this.squares[i].set_val(val);
+				}
 			}
 		}
 
@@ -260,7 +263,7 @@ namespace Sudoku {
 			int[] s = new int[10];
 			for(int i = 0; i < 81; i++) {
 				s = squares[i].safe_vals();
-				if((squares[i].get_val() < 0) && (s.length < safes.length)) {
+				if((squares[i].get_val() <= 0) && (s.length < safes.length)) {
 					loc = i;
 					safes = s;
 				}
@@ -313,6 +316,7 @@ namespace Sudoku {
 				b.min_safe(out loc, out safes);
 				foreach(int i in safes) {
 					Board c = new Board.copy(b);
+					c.set_val(loc,i);
 					if(active_solve(c)) {
 						return true;
 					}
@@ -323,7 +327,7 @@ namespace Sudoku {
 
 		private bool solve(Board b) {
 			bool go = true;
-			while(go) {
+			while(go && b.valid()) {
 				go = false;
 				b.update_safe();
 				go = b.fill_vals();
